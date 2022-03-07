@@ -68,10 +68,24 @@ class Miner():
         self.trxClient.publish("NEWTRX", json.dumps(trx, sort_keys=True))
 
     def publishBLOCK(self, block):
-        pass
+        self.settleMinedTRXS(block['transactions'])
+        self.blockchain.append(block)
+        block
+        announcement = {'publisher': self.id, 'block': block}
+        self.blockClient.publish(
+            "NEWBLOCK", json.dumps(announcement, sort_keys=True))
 
     def on_newblock(self, client, userdata, message):
-        pass
+        decoded = str(message.payload.decode("utf-8"))
+        announcement = json.loads(decoded)
+        if announcement['publisher'] != self.id:
+            block = announcement['block']
+            print(f"{self.name}: RECEIVED NEW BLOCK:\n{block_summary(block)}")
+            self.settleMinedTRXS(block['transactions'])
+            self.blockchain.append(block)
+        else:
+            #print("just my block")
+            pass
 
     def on_newtrx(self, client, userdata, message):
         decoded = str(message.payload.decode("utf-8"))
@@ -92,7 +106,16 @@ class Miner():
                 self.trxs.remove(trx)
 
     def workingBlock(self):
-        pass
+        now = dt.now().isoformat()
+        reward = {'sender': self.id, 'timestamp': now}
+        block = {
+            'index': len(self.blockchain) + 1,
+            'timestamp': now,
+            'transactions': self.trxs + [reward],
+            'nonce': nonce(now),
+            'previous_hash': self.blockchain[-1]['blockhash']
+        }
+        return SortedDict(block)
 
     def start(self):
         self.blockClient.loop_start()
